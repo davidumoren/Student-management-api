@@ -1,14 +1,25 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app import models
+from app.database import get_db, engine, Base
 from app.routers import students
-from app.database import get_db
 
-from fastapi import FastAPI, HTTPException
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure SQLAlchemy has registered the Student model.
+    # Create tables that are missing from the database.
+    Base.metadata.create_all(bind=engine)
+
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(
     students.router
@@ -44,9 +55,6 @@ def readiness_check(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
 
-
-
-
         return {
             "status": "ready"
         }
@@ -55,4 +63,4 @@ def readiness_check(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=503,
             detail="Database unavailable"
-        )   
+        )
